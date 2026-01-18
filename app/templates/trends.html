@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <h1 class="mb-4">Discovered Trends</h1>
+    <div class="row">
+        {% for trend in trends %}
+            <div class="col-md-6 mb-4">
+                <div class="card">
+                    <div class="card-header">
+                        <strong>{{ trend.title }}</strong>
+                        <span class="badge bg-secondary">{{ trend.category }}</span>
+                        <span class="badge bg-info">{{ trend.region }}</span>
+                    </div>
+                    <div class="card-body">
+                        <p class="card-text">{{ trend.description }}</p>
+                        {% if trend.source_url %}
+                            <a href="{{ trend.source_url }}" target="_blank" class="btn btn-sm btn-outline-primary">Source</a>
+                        {% endif %}
+                        <small class="text-muted">Discovered: {{ trend.discovered_at.strftime('%Y-%m-%d %H:%M') }}</small>
+                    </div>
+                </div>
+            </div>
+        {% else %}
+            <div class="col-12">
+                <p class="text-center">No trends discovered yet.</p>
+            </div>
+        {% endfor %}
+    </div>
+{% endblock %}

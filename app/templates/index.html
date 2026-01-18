@@ -1,0 +1,206 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>LinkedIn AI Manager Dashboard</h1>
+    <div>
+        <a href="/run-agents" class="btn btn-success btn-lg">
+            <i class="bi bi-play-circle"></i> Run Agents Now
+        </a>
+    </div>
+</div>
+
+<!-- Status Alert -->
+<div class="alert alert-info" role="alert">
+    <strong>System Status:</strong> Dashboard running | Agents scheduled for 9:00 AM daily
+</div>
+
+<div class="row">
+    <div class="col-md-4">
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">📊 Latest Trends</h5>
+            </div>
+            <div class="card-body">
+                {% if trends %}
+                <ul class="list-group list-group-flush">
+                    {% for trend in trends %}
+                    <li class="list-group-item">
+                        <strong>{{ trend.title }}</strong>
+                        <br>
+                        <small class="text-muted">{{ trend.category }} | {{ trend.discovered_at.strftime('%Y-%m-%d
+                            %H:%M') }}</small>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <div class="alert alert-warning">
+                    No trends discovered yet. Click "Run Agents Now" to discover trends.
+                </div>
+                {% endif %}
+                <a href="/trends" class="btn btn-primary btn-sm mt-3 w-100">View All Trends</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card mb-4">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0">📅 Weekly Plans</h5>
+            </div>
+            <div class="card-body">
+                {% if weekly_plans %}
+                <ul class="list-group list-group-flush">
+                    {% for plan in weekly_plans %}
+                    <li class="list-group-item">
+                        <strong>Week of {{ plan.week_start.strftime('%Y-%m-%d') }}</strong>
+                        <br>
+                        <span class="badge bg-{{ 'success' if plan.status == 'approved' else 'warning' }}">{{
+                            plan.status }}</span>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <div class="alert alert-warning">
+                    No plans created yet. Run agents to create a weekly content plan.
+                </div>
+                {% endif %}
+                <a href="/plans" class="btn btn-success btn-sm mt-3 w-100">View All Plans</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card mb-4">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0">📝 Recent Posts</h5>
+            </div>
+            <div class="card-body">
+                {% if posts %}
+                <ul class="list-group list-group-flush">
+                    {% for post in posts %}
+                    <li class="list-group-item">
+                        <strong>{{ post.title }}</strong>
+                        <br>
+                        <span class="badge bg-{{ 'success' if post.status == 'approved' else 'secondary' }}">{{
+                            post.status }}</span>
+                        <small class="text-muted">{{ post.category }}</small>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <div class="alert alert-warning">
+                    No posts generated yet. Run agents to create content.
+                </div>
+                {% endif %}
+                <a href="/posts" class="btn btn-info btn-sm mt-3 w-100">View All Posts</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-12">
+        <h1>🚀 LinkedIn AI Manager</h1>
+        <p class="lead">Autonomous content creation system powered by Quantum AI</p>
+    </div>
+</div>
+
+<!-- Live Workflow Console (Hidden by default) -->
+<div id="workflow-console" class="card mb-4 border-primary" style="display: none;">
+    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">
+            <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+            Live Workflow Status
+        </h5>
+        <span id="workflow-step" class="badge bg-light text-dark">Initializing...</span>
+    </div>
+    <div class="card-body">
+        <!-- Progress Bar -->
+        <div class="progress mb-3" style="height: 25px;">
+            <div id="workflow-progress" class="progress-bar progress-bar-striped progress-bar-animated bg-success"
+                role="progressbar" style="width: 0%">0%</div>
+        </div>
+
+        <!-- Logs Window -->
+        <div class="bg-dark text-light p-3 rounded"
+            style="height: 200px; overflow-y: auto; font-family: monospace; font-size: 0.9rem;">
+            <div id="workflow-logs">
+                <div class="text-muted">Waiting for updates...</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Actions -->
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-body d-flex justify-content-between align-items-center">
+                <div>
+                    <h5 class="card-title mb-0">⚡ Quick Actions</h5>
+                </div>
+                <div>
+                    <a href="/run-agents" class="btn btn-success btn-lg">
+                        <i class="bi bi-play-circle"></i> Run Agents Now
+                    </a>
+                    <a href="/settings/apis" class="btn btn-outline-secondary">
+                        <i class="bi bi-gear"></i> Configure APIs
+                    </a>
+                    <a href="/settings/topics" class="btn btn-outline-secondary">
+                        <i class="bi bi-list-check"></i> Manage Topics
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Poll for workflow status
+    function updateStatus() {
+        fetch('/api/workflow-status')
+            .then(response => response.json())
+            .then(data => {
+                const consoleEl = document.getElementById('workflow-console');
+
+                // Show console if running or has logs
+                if (data.is_running || (data.logs && data.logs.length > 0)) {
+                    consoleEl.style.display = 'block';
+
+                    // Update basic info
+                    document.getElementById('workflow-step').textContent = data.current_step;
+
+                    // Update progress bar
+                    const progressBar = document.getElementById('workflow-progress');
+                    progressBar.style.width = data.progress + '%';
+                    progressBar.textContent = data.progress + '%';
+
+                    // Update spinner based on running state
+                    const spinner = consoleEl.querySelector('.spinner-border');
+                    if (data.is_running) {
+                        spinner.style.display = 'inline-block';
+                        progressBar.classList.add('progress-bar-striped', 'progress-bar-animated');
+                    } else {
+                        spinner.style.display = 'none';
+                        progressBar.classList.remove('progress-bar-striped', 'progress-bar-animated');
+
+                        // If finished successfully
+                        if (data.progress === 100) {
+                            document.getElementById('workflow-step').className = "badge bg-success";
+                            document.getElementById('workflow-step').textContent = "Completed";
+                        }
+                    }
+
+                    // Update logs
+                    const logsDiv = document.getElementById('workflow-logs');
+                    logsDiv.innerHTML = data.logs.map(log => `<div>${log}</div>`).join('');
+                    logsDiv.scrollTop = logsDiv.scrollHeight; // Auto-scroll to bottom
+                }
+            })
+            .catch(err => console.error("Failed to fetch status:", err));
+    }
+
+    // Start polling immediately and then every 2 seconds
+    updateStatus();
+    setInterval(updateStatus, 2000);
+</script>
+{% endblock %}

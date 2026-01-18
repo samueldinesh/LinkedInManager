@@ -1,0 +1,11 @@
+[Unit]
+Description=LinkedIn AI Manager - Daily Agent Run
+Requires=linkedin-agents.service
+
+[Timer]
+OnCalendar=daily
+OnCalendar=09:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

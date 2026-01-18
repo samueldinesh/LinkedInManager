@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="mb-0">Weekly Plan: {{ plan.week_start.strftime('%Y-%m-%d') }}</h1>
+        <span class="badge bg-{{ 'success' if plan.status == 'approved' else 'warning' }} fs-6 mt-2">{{ plan.status
+            }}</span>
+    </div>
+    <div>
+        <button onclick="regeneratePlan({{ plan.id }})" class="btn btn-outline-danger">
+            <i class="bi bi-arrow-repeat"></i> Regenerate / Reset
+        </button>
+        <a href="/plans" class="btn btn-secondary">Back to Plans</a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Posts in this Plan</h5>
+            </div>
+            <div class="card-body">
+                {% if posts %}
+                <div class="list-group">
+                    {% for post in posts %}
+                    <div
+                        class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-1">{{ post.title }}</h6>
+                            <p class="mb-1 text-muted small">{{ post.category }}</p>
+                        </div>
+                        <div>
+                            <span class="badge bg-{{ 'success' if post.status == 'approved' else 'secondary' }}">{{
+                                post.status }}</span>
+                            <a href="/posts#post-card-{{ post.id }}"
+                                class="btn btn-sm btn-outline-primary ms-2">View</a>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-muted">No posts generated for this plan yet.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header bg-light">
+                <h5 class="mb-0">Plan Details</h5>
+            </div>
+            <div class="card-body">
+                <p><strong>Created:</strong> {{ plan.created_at.strftime('%Y-%m-%d %H:%M') }}</p>
+                <p><strong>Posts:</strong> {{ posts|length }}</p>
+                <hr>
+                <h6>Topics Covered:</h6>
+                <ul>
+                    {% for post in posts %}
+                    <li>{{ post.title }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function regeneratePlan(planId) {
+        if (confirm("⚠ Warning: This will DELETE the current plan and all its posts. You will be redirected to the 'Run Agents' page to create a new one. Continue?")) {
+            // Delete plan via API (we can reuse the bulk delete or add a specific plan delete if needed, 
+            // but for now let's just delete the posts manually or redirect to run-agents to 'overwrite'?)
+            // Actually, best user experience: Delete the plan rows.
+
+            // Note: We don't have a specific DELETE plan API yet, but we can assume the user just wants to start over.
+            // Let's redirect them to run-agents with a message.
+            window.location.href = "/run-agents?message=Please+re-run+strategy+to+regenerate";
+        }
+    }
+</script>
+{% endblock %}

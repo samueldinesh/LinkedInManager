@@ -1,0 +1,232 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-10">
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h3 class="mb-0">🚀 Run Agent Workflow</h3>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-warning">
+                        <strong>⚠️ Quota Management:</strong> The system will automatically handle quota limits and
+                        switch between models. If all quotas are exceeded, the workflow will stop gracefully.
+                    </div>
+
+                    <p class="lead">Select which steps to run:</p>
+
+                    <form method="post" action="/run-agents">
+                        <div class="mb-4">
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" name="steps" value="trends"
+                                    id="step_trends" checked>
+                                <label class="form-check-label" for="step_trends">
+                                    <strong>1. Trend Discovery</strong>
+                                    <br>
+                                    <small class="text-muted">Search for latest quantum computing news (~7 API
+                                        calls)</small>
+                                </label>
+                            </div>
+
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" name="steps" value="strategy"
+                                    id="step_strategy" checked>
+                                <label class="form-check-label" for="step_strategy">
+                                    <strong>2. Content Strategy</strong>
+                                    <br>
+                                    <small class="text-muted">Create weekly content plan (~1 API call)</small>
+                                </label>
+                            </div>
+
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" name="steps" value="content"
+                                    id="step_content" checked>
+                                <label class="form-check-label" for="step_content">
+                                    <strong>3. Content Generation</strong>
+                                    <br>
+                                    <small class="text-muted">Generate LinkedIn posts (~7 API calls)</small>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="alert alert-info">
+                            <strong>📊 Estimated API Usage:</strong>
+                            <ul class="mb-0">
+                                <li>Full workflow: ~15 requests</li>
+                                <li>Daily capacity: 60 requests (3 models × 20 each)</li>
+                                <li>Auto-rotation: System switches models when quota reached</li>
+                            </ul>
+                        </div>
+
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-success btn-lg">
+                                <i class="bi bi-play-circle"></i> Start Selected Steps
+                            </button>
+                            <a href="/" class="btn btn-outline-secondary">
+                                <i class="bi bi-arrow-left"></i> Back to Dashboard
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Live Workflow Console (Hidden by default) -->
+            <div id="workflow-console" class="card mb-4 border-primary" style="display: none;">
+                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                        Live Workflow Status
+                    </h5>
+                    <span id="workflow-step" class="badge bg-light text-dark">Initializing...</span>
+                </div>
+                <div class="card-body">
+                    <!-- Progress Bar -->
+                    <div class="progress mb-3" style="height: 25px;">
+                        <div id="workflow-progress"
+                            class="progress-bar progress-bar-striped progress-bar-animated bg-success"
+                            role="progressbar" style="width: 0%">0%</div>
+                    </div>
+
+                    <!-- Logs Window -->
+                    <div class="bg-dark text-light p-3 rounded"
+                        style="height: 300px; overflow-y: auto; font-family: monospace; font-size: 0.9rem;">
+                        <div id="workflow-logs">
+                            <div class="text-muted">Waiting for updates...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tips Config -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">💡 Tips</h5>
+                </div>
+                <div class="card-body">
+                    <ul class="mb-0">
+                        <li><strong>Run trends only:</strong> Uncheck strategy & content if you just want to discover
+                            new trends</li>
+                        <li><strong>Generate content only:</strong> Uncheck trends & strategy if you already have trends
+                        </li>
+                        <li><strong>Quota exceeded?</strong> System will try other models. If all fail, wait until
+                            midnight UTC</li>
+                        <li><strong>Check quota:</strong> View <code>data/gemini_usage.json</code> to see current usage
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+            <script>
+                // Handle form submission via AJAX
+                document.querySelector('form').addEventListener('submit', function (e) {
+                    e.preventDefault(); // Stop page reload
+
+                    const form = e.target;
+                    const formData = new FormData(form);
+                    const submitBtn = form.querySelector('button[type="submit"]');
+
+                    // Disable button to prevent double submit
+                    submitBtn.disabled = true;
+                    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Starting...';
+
+                    // Send AJAX request
+                    fetch('/run-agents', {
+                        method: 'POST',
+                        headers: {
+                            'Accept': 'application/json'
+                        },
+                        body: formData
+                    })
+                        .then(response => response.json())
+                        .then(data => {
+                            // Show console
+                            document.getElementById('workflow-console').style.display = 'block';
+                            // Start polling
+                            startPolling();
+                        })
+                        .catch(error => {
+                            console.error('Error:', error);
+                            alert('Failed to start workflow');
+                            submitBtn.disabled = false;
+                            submitBtn.textContent = 'Start Selected Steps';
+                        });
+                });
+
+                // Poll for workflow status
+                let pollInterval;
+
+                function startPolling() {
+                    // Poll immediately
+                    updateStatus();
+                    // Then every 1 second
+                    pollInterval = setInterval(updateStatus, 1000);
+                }
+
+                function updateStatus() {
+                    fetch('/api/workflow-status')
+                        .then(response => response.json())
+                        .then(data => {
+                            const consoleEl = document.getElementById('workflow-console');
+
+                            // Update basic info
+                            document.getElementById('workflow-step').textContent = data.current_step;
+
+                            // Update progress bar
+                            const progressBar = document.getElementById('workflow-progress');
+                            progressBar.style.width = data.progress + '%';
+                            progressBar.textContent = data.progress + '%';
+
+                            // Update spinner based on running state
+                            const spinner = consoleEl.querySelector('.spinner-border');
+                            if (data.is_running) {
+                                spinner.style.display = 'inline-block';
+                                progressBar.classList.add('progress-bar-striped', 'progress-bar-animated');
+                            } else {
+                                // Finished
+                                spinner.style.display = 'none';
+                                progressBar.classList.remove('progress-bar-striped', 'progress-bar-animated');
+
+                                if (data.progress === 100) {
+                                    document.getElementById('workflow-step').className = "badge bg-success";
+                                    document.getElementById('workflow-step').textContent = "Completed";
+
+                                    // Re-enable start button
+                                    const submitBtn = document.querySelector('button[type="submit"]');
+                                    submitBtn.disabled = false;
+                                    submitBtn.textContent = 'Run Again';
+                                }
+                            }
+
+                            // Update logs
+                            const logsDiv = document.getElementById('workflow-logs');
+                            logsDiv.innerHTML = data.logs.map(log => `<div>${log}</div>`).join('');
+                            logsDiv.scrollTop = logsDiv.scrollHeight; // Auto-scroll to bottom
+                        })
+                        .catch(err => console.error("Failed to fetch status:", err));
+                }
+            </script>
+            <div class="card mt-4">
+                <div class="card-header bg-warning">
+                    <h5 class="mb-0">📅 Posting Schedule</h5>
+                </div>
+                <div class="card-body">
+                    <p><strong>Posts are NOT automatically published.</strong> They are created as drafts.</p>
+                    <p>To publish:</p>
+                    <ol>
+                        <li>Go to <a href="/posts">Posts page</a></li>
+                        <li>Review each post</li>
+                        <li>Click "Approve" to mark for publishing</li>
+                        <li>Set up posting schedule in Settings (Phase 2)</li>
+                    </ol>
+                    <p class="mb-0">
+                        <small class="text-muted">
+                            This gives you full control over what gets posted and when.
+                        </small>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

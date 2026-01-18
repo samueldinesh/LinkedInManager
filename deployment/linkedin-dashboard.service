@@ -1,0 +1,15 @@
+[Unit]
+Description=LinkedIn AI Manager - Web Dashboard
+After=network.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/linkedin-ai-manager
+Environment="PATH=/home/pi/linkedin-ai-manager/venv/bin"
+ExecStart=/home/pi/linkedin-ai-manager/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,14 @@
+[Unit]
+Description=LinkedIn Content Agency
+After=network.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/linkedin-content-agency
+ExecStart=/home/pi/linkedin-content-agency/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

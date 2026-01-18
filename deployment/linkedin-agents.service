@@ -1,0 +1,13 @@
+[Unit]
+Description=LinkedIn AI Manager - Background Agents
+After=network.target
+
+[Service]
+Type=oneshot
+User=pi
+WorkingDirectory=/home/pi/linkedin-ai-manager
+Environment="PATH=/home/pi/linkedin-ai-manager/venv/bin"
+ExecStart=/home/pi/linkedin-ai-manager/venv/bin/python main.py
+
+[Install]
+WantedBy=multi-user.target
