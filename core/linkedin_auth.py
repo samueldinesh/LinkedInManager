@@ -5,6 +5,11 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# Allow OAuth over HTTP for local development
+os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = os.getenv('OAUTHLIB_INSECURE_TRANSPORT', '0')
+# Allow scope format changes (LinkedIn returns commas, we send spaces)
+os.environ['OAUTHLIB_RELAX_TOKEN_SCOPE'] = '1'
+
 CLIENT_ID = os.getenv("LINKEDIN_CLIENT_ID")
 CLIENT_SECRET = os.getenv("LINKEDIN_CLIENT_SECRET")
 REDIRECT_URI = "http://localhost:8000/linkedin/callback"  # For local testing
@@ -12,7 +17,7 @@ REDIRECT_URI = "http://localhost:8000/linkedin/callback"  # For local testing
 AUTHORIZATION_BASE_URL = "https://www.linkedin.com/oauth/v2/authorization"
 TOKEN_URL = "https://www.linkedin.com/oauth/v2/accessToken"
 
-SCOPE = ["w_member_social", "r_liteprofile"]  # Permissions for posting and reading profile
+SCOPE = ["openid", "profile", "email", "w_member_social"]  # OpenID + profile/email required, posting permission
 
 class LinkedInAuth:
     def __init__(self):
@@ -23,7 +28,13 @@ class LinkedInAuth:
         return authorization_url, state
 
     def fetch_token(self, authorization_response):
-        token = self.oauth.fetch_token(TOKEN_URL, authorization_response=authorization_response, client_secret=CLIENT_SECRET)
+        # LinkedIn requires client_id and client_secret in the token request
+        token = self.oauth.fetch_token(
+            TOKEN_URL, 
+            authorization_response=authorization_response, 
+            client_secret=CLIENT_SECRET,
+            include_client_id=True  # LinkedIn requires client_id in token request
+        )
         return token
 
     def refresh_token(self, refresh_token):

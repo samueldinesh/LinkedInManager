@@ -206,6 +206,10 @@ class GemmaProvider(LLMProvider):
             
         return self.status
     
+    def supports_search(self) -> bool:
+        """Gemma models don't support search grounding currently"""
+        return False
+    
     async def test_connection(self) -> bool:
         """Test if Gemma is accessible"""
         try:

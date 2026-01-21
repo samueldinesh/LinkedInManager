@@ -1,3 +1,7 @@
+# MUST be set before any OAuth imports to allow HTTP for local development
+import os
+os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
+
 from fastapi import FastAPI, Request, Depends, Form, HTTPException, BackgroundTasks
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
@@ -63,11 +67,13 @@ async def approve_post(post_id: int, db: AsyncSession = Depends(get_db)):
 
 @app.post("/posts/{post_id}/post")
 async def post_to_linkedin_endpoint(post_id: int):
+    from core.linkedin_api import post_to_linkedin
     result = await post_to_linkedin(post_id)
     if result.get("success"):
-        return {"message": "Post published successfully"}
+        return RedirectResponse(url="/posts?posted=true", status_code=303)
     else:
-        raise HTTPException(status_code=400, detail=result.get("error", "Failed to post"))
+        error_msg = result.get("error", "Failed to post")
+        return RedirectResponse(url=f"/posts?post_error={error_msg}", status_code=303)
 
 # Run agents manually
 @app.get("/run-agents", response_class=HTMLResponse)
@@ -266,11 +272,70 @@ async def settings_topics(request: Request):
 
 # Placeholder for LinkedIn OAuth routes
 @app.get("/linkedin/auth")
-async def linkedin_auth():
-    # This would redirect to LinkedIn for authorization
-    return {"message": "LinkedIn OAuth not implemented yet"}
+async def linkedin_auth(request: Request):
+    """Start LinkedIn OAuth flow"""
+    import os
+    from core.linkedin_auth import LinkedInAuth
+    
+    # Check if credentials are configured
+    if not os.getenv("LINKEDIN_CLIENT_ID"):
+        return {"error": "LinkedIn credentials not configured in .env"}
+    
+    auth = LinkedInAuth()
+    auth_url, state = auth.get_authorization_url()
+    
+    # Store state in session for CSRF protection (simplified - use proper session in production)
+    # For now, we'll skip state verification for simplicity
+    
+    from starlette.responses import RedirectResponse
+    return RedirectResponse(auth_url)
 
 @app.get("/linkedin/callback")
-async def linkedin_callback():
-    # Handle OAuth callback
-    return {"message": "OAuth callback not implemented yet"}
+async def linkedin_callback(request: Request):
+    """Handle LinkedIn OAuth callback"""
+    from core.linkedin_auth import LinkedInAuth, save_tokens
+    from starlette.responses import RedirectResponse
+    
+    try:
+        auth = LinkedInAuth()
+        # Get the full callback URL
+        callback_url = str(request.url)
+        
+        # Exchange code for token
+        token = auth.fetch_token(callback_url)
+        
+        # Log the full token response to see what data LinkedIn provides
+        logger.info(f"LinkedIn OAuth token response: {token}")
+        
+        # Save tokens to .env
+        save_tokens(token["access_token"], token.get("refresh_token"))
+        
+        # Reload the access token in memory
+        import os
+        os.environ["LINKEDIN_ACCESS_TOKEN"] = token["access_token"]
+        
+        return RedirectResponse("/?linkedin_connected=true")
+    except Exception as e:
+        logger.error(f"LinkedIn OAuth error: {e}")
+        return RedirectResponse(f"/?linkedin_error={str(e)}")
+
+@app.get("/api/linkedin/status")
+async def linkedin_status():
+    """Check if LinkedIn is connected"""
+    import os
+    access_token = os.getenv("LINKEDIN_ACCESS_TOKEN")
+    
+    if not access_token:
+        return {"connected": False, "message": "Not connected"}
+    
+    # Optionally verify token is still valid
+    from core.linkedin_api import LinkedInAPI
+    try:
+        api = LinkedInAPI(access_token)
+        profile = api.get_profile_info()
+        if profile:
+            return {"connected": True, "profile": profile}
+        else:
+            return {"connected": False, "message": "Token expired"}
+    except Exception as e:
+        return {"connected": False, "message": str(e)}

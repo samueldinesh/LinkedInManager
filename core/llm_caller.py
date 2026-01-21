@@ -15,7 +15,7 @@ from core.interfaces import QuotaExceededError, ProviderError
 logger = logging.getLogger(__name__)
 
 
-async def call_llm(prompt: str, max_retries: int = 2) -> str:
+async def call_llm(prompt: str, max_retries: int = 2, require_search: bool = False) -> str:
     """
     Call LLM using intelligent API pool with automatic model selection.
     
@@ -31,6 +31,7 @@ async def call_llm(prompt: str, max_retries: int = 2) -> str:
     Args:
         prompt: The prompt to send to the LLM
         max_retries: Number of retries on transient errors
+        require_search: If True, only use providers that support search
         
     Returns:
         Generated text response
@@ -48,7 +49,7 @@ async def call_llm(prompt: str, max_retries: int = 2) -> str:
     for attempt in range(max_retries + 1):
         try:
             logger.debug(f"Calling LLM (attempt {attempt + 1}/{max_retries + 1})")
-            response = await orchestrator.api_pool.call(prompt)
+            response = await orchestrator.api_pool.call(prompt, require_search=require_search)
             return response
             
         except QuotaExceededError as e:

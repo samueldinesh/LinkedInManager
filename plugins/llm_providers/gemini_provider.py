@@ -210,6 +210,10 @@ class GeminiProvider(LLMProvider):
             
         return self.status
     
+    def supports_search(self) -> bool:
+        """Check if search is enabled"""
+        return self.enable_search
+    
     async def test_connection(self) -> bool:
         """Test if Gemini is accessible"""
         try:

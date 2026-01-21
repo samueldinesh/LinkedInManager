@@ -74,6 +74,16 @@ class LLMProvider(ABC):
         pass
     
     @abstractmethod
+    def supports_search(self) -> bool:
+        """
+        Check if the provider supports web search grounding.
+        
+        Returns:
+            True if search is enabled
+        """
+        pass
+
+    @abstractmethod
     async def test_connection(self) -> bool:
         """
         Test if the provider is accessible and credentials are valid.

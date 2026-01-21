@@ -21,44 +21,54 @@ class TrendDiscoveryAgent:
         self.rate_limiter = rate_limiter
 
     async def _call_llm_with_rate_limit(self, prompt: str) -> str:
-        """Call LLM using intelligent API pool (Gemma first, then Gemini)"""
+        """Call LLM with search capability enabled"""
         async with self.rate_limiter:
-            # Uses API pool: tries Gemma (14.4K RPD) first, then Gemini (20 RPD)
-            response = await call_llm(prompt)
+            # Force using a provider that supports search (Gemini Flash)
+            response = await call_llm(prompt, require_search=True)
             return response
 
-    async def search_web(self, query: str) -> str:
-        # This function will be called by Gemini model via tool_code
-        # In a real scenario, this would use a dedicated web search API (e.g., Google Custom Search, SerpApi)
-        # For this implementation, we will simulate a web search.
-        logger.info(f"Simulating web search for: {query}")
-        # In a real application, you would make an actual API call here
-        return f"Simulated search results for '{query}': No real results fetched."
-
     async def discover_trends(self) -> List[Dict]:
-        logger.info("Starting trend discovery...")
+        logger.info("Starting trend discovery with Google Search...")
         queries = [
-            "latest quantum computing breakthroughs",
-            "quantum computing news India",
-            "government schemes for quantum technology India",
-            "international quantum computing funding",
-            "AI in quantum computing advancements",
-            "IoT in quantum computing applications",
-            "bioinformatics quantum computing research"
+            "latest quantum computing breakthroughs this week",
+            "quantum computing news India latest",
+            "government schemes for quantum technology India 2025",
+            "international quantum computing funding news",
+            "AI in quantum computing latest advancements",
+            "IoT in quantum computing applications news",
+            "bioinformatics quantum computing research updates"
         ]
 
         discovered_trends = []
 
         for query in queries:
-            prompt = f"Using web search, find the latest information on: {query}. Summarize the top 3 most relevant findings, including a title, a brief description, the likely category (breakthrough, scheme, news, lesson), and if possible, a source URL and region (India, international, global)."
+            prompt = f"""
+            Using your search capabilities, find the latest information on: {query}. 
+            Summarize the top 3 most relevant findings. 
             
-            # This is a placeholder for actual Gemini tool calling. 
-            # Gemini will invoke the `search_web` function defined in `tools`.
-            # For now, we'll directly call `_call_gemini_with_rate_limit` with a simple prompt.
+            For each finding, provide:
+            1. Title
+            2. Brief description (what happened and why it matters)
+            3. Category (breakthrough, scheme, news, or lesson)
+            4. Source URL (if available)
+            5. Region (India, International, or Global)
+            
+            Format the output strictly as a JSON list of objects.
+            Example:
+            [
+                {{
+                    "title": "Example Title",
+                    "description": "Example description...",
+                    "category": "news",
+                    "source_url": "https://example.com",
+                    "region": "India"
+                }}
+            ]
+            """
+            
             try:
                 response_text = await self._call_llm_with_rate_limit(prompt)
                 # Parse response_text into structured trends
-                # This parsing logic will need to be more robust
                 parsed_trends = self._parse_llm_response(response_text, query)
                 discovered_trends.extend(parsed_trends)
             except Exception as e:
@@ -68,27 +78,46 @@ class TrendDiscoveryAgent:
         return discovered_trends
 
     def _parse_llm_response(self, response_text: str, query: str) -> List[Dict]:
-        # Placeholder for robust parsing logic
-        # In a real scenario, you'd use regex or more sophisticated NLP to extract structured data
-        logger.info(f"Parsing Gemini response for query '{query}'")
-        # Example: if Gemini returns a list of JSON-like strings
+        """Parse JSON response from LLM"""
         try:
-            # Simplified parsing: assuming Gemini directly provides a JSON-like string
-            # This is highly dependent on how you prompt Gemini to structure its output
-            # For demonstration, let's assume a very basic structure or just extract the summary
-            return [{
-                "title": f"Summary for {query}",
-                "description": response_text[:200] + "..." if len(response_text) > 200 else response_text,
-                "category": "news", # Default category, should be smarter
-                "source_url": "",
-                "region": "global" # Default region, should be smarter
-            }]
+            import json
+            import re
+            
+            # Clean up: remove markdown code blocks
+            text = response_text.strip()
+            if "```json" in text:
+                text = text.split("```json")[1].split("```")[0]
+            elif "```" in text:
+                text = text.split("```")[1].split("```")[0]
+            
+            text = text.strip()
+            
+            # Parse JSON
+            data = json.loads(text)
+            
+            # Ensure it's a list
+            if isinstance(data, dict):
+                data = [data]
+                
+            # Validate structure
+            valid_trends = []
+            for item in data:
+                if "title" in item and "description" in item:
+                    item["category"] = item.get("category", "news")
+                    item["region"] = item.get("region", "global")
+                    valid_trends.append(item)
+            
+            return valid_trends
+            
         except Exception as e:
-            logger.warning(f"Could not parse Gemini response for query '{query}': {e}. Returning raw response as a single trend.")
+            logger.warning(f"Failed to parse JSON for query '{query}': {e}")
+            logger.debug(f"Raw response: {response_text}")
+            
+            # Fallback: Create a single item from raw text
             return [{
-                "title": f"Raw response for {query}",
-                "description": response_text,
-                "category": "news",
+                "title": f"Trends for {query}",
+                "description": response_text[:500],
+                "category": "news", 
                 "source_url": "",
                 "region": "global"
             }]

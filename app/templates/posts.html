@@ -117,6 +117,15 @@
 
 <!-- Scripts -->
 <script>
+    // Check for posting success/error from URL
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('posted')) {
+        showToast('Success', 'Post published to LinkedIn!', 'success');
+    }
+    if (urlParams.get('post_error')) {
+        showToast('Error', 'Failed to post: ' + urlParams.get('post_error'), 'error');
+    }
+
     const editModal = new bootstrap.Modal(document.getElementById('editModal'));
 
     function openEditModal(postId) {
