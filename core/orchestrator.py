@@ -93,13 +93,18 @@ class AgentOrchestrator:
         
         for model_name, priority in gemini_models:
             try:
+                # Enable search for the standard flash model
+                enable_search = (model_name == "gemini-2.0-flash")
+                
                 provider = self.plugin_manager.get_llm_provider(
                     "gemini",
                     model_name=model_name,
-                    enable_search=False
+                    enable_search=enable_search
                 )
                 self.api_pool.add_provider(provider, priority=priority)
-                logger.info(f"✓ Added {model_name} (20 RPD) - Priority {priority}")
+                
+                search_status = " (Search Enabled)" if enable_search else ""
+                logger.info(f"✓ Added {model_name} (20 RPD) - Priority {priority}{search_status}")
             except Exception as e:
                 logger.warning(f"Could not add {model_name}: {e}")
         

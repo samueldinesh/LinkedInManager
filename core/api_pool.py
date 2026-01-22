@@ -60,12 +60,13 @@ class APIPool:
                    (model_name is None or p['provider'].get_model_name() == model_name))
         ]
         
-    async def call(self, prompt: str, **kwargs) -> str:
+    async def call(self, prompt: str, require_search: bool = False, **kwargs) -> str:
         """
         Route a generation request to an available provider.
         
         Args:
             prompt: The prompt to generate from
+            require_search: If True, only use providers that support search
             **kwargs: Additional generation parameters
             
         Returns:
@@ -75,10 +76,13 @@ class APIPool:
             ProviderError: If all providers are unavailable
         """
         async with self._lock:
-            available_providers = self._get_available_providers()
+            available_providers = self._get_available_providers(require_search=require_search)
             
             if not available_providers:
-                raise ProviderError("No available providers. All quotas may be exceeded.")
+                error_msg = "No available providers."
+                if require_search:
+                    error_msg += " (No providers support search)"
+                raise ProviderError(error_msg)
             
             # Try providers in order based on strategy
             for provider_info in available_providers:
@@ -104,9 +108,12 @@ class APIPool:
             
             raise ProviderError("All providers failed or quota exceeded")
     
-    def _get_available_providers(self) -> List[Dict]:
+    def _get_available_providers(self, require_search: bool = False) -> List[Dict]:
         """
         Get list of available providers based on routing strategy.
+        
+        Args:
+            require_search: If True, filter for search-enabled providers
         
         Returns:
             Sorted list of provider info dictionaries
@@ -116,6 +123,10 @@ class APIPool:
             p for p in self.providers 
             if p['provider'].get_status() in [ProviderStatus.ACTIVE, ProviderStatus.QUOTA_EXCEEDED]
         ]
+        
+        # Filter for search capability if requested
+        if require_search:
+            available = [p for p in available if p['provider'].supports_search()]
         
         if not available:
             return []

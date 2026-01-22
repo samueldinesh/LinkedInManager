@@ -6,11 +6,10 @@ from datetime import datetime
 
 load_dotenv()
 
-ACCESS_TOKEN = os.getenv("LINKEDIN_ACCESS_TOKEN")
-
 class LinkedInAPI:
     def __init__(self, access_token=None):
-        self.access_token = access_token or ACCESS_TOKEN
+        # Get token at runtime (not import time) so we pick up newly saved tokens
+        self.access_token = access_token or os.getenv("LINKEDIN_ACCESS_TOKEN")
         self.base_url = "https://api.linkedin.com/v2"
         self.headers = {
             "Authorization": f"Bearer {self.access_token}",
@@ -20,9 +19,25 @@ class LinkedInAPI:
 
     def get_profile_info(self):
         """Get basic profile information to verify token"""
-        url = f"{self.base_url}/people/~"
-        response = requests.get(url, headers=self.headers)
-        return response.json() if response.status_code == 200 else None
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        # With openid scope, we can use the /userinfo endpoint
+        url = "https://api.linkedin.com/v2/userinfo"
+        headers = {
+            "Authorization": f"Bearer {self.access_token}"
+        }
+        
+        response = requests.get(url, headers=headers)
+        
+        logger.info(f"LinkedIn userinfo API response: {response.status_code}")
+        if response.status_code == 200:
+            user_info = response.json()
+            logger.info(f"User info: {user_info}")
+            return user_info
+        else:
+            logger.error(f"LinkedIn API error: {response.text}")
+            return None
 
     def create_text_post(self, text: str) -> dict:
         """Create a text-only post on LinkedIn"""
@@ -58,9 +73,18 @@ class LinkedInAPI:
 
     def _get_author_urn(self) -> str:
         """Get the author's URN for posting"""
+        import logging
+        logger = logging.getLogger(__name__)
+        
         profile = self.get_profile_info()
-        if profile and "id" in profile:
-            return f"urn:li:person:{profile['id']}"
+        if profile and "sub" in profile:
+            # The 'sub' field from userinfo contains the member ID
+            member_id = profile['sub']
+            urn = f"urn:li:person:{member_id}"
+            logger.info(f"Author URN: {urn}")
+            return urn
+        
+        logger.error("Could not extract member ID from profile")
         return None
 
     def create_post_with_media(self, text: str, media_url: str = None) -> dict:
@@ -76,7 +100,8 @@ async def post_to_linkedin(post_id: int):
     from sqlalchemy import select, update
     
     async with async_session() as session:
-        post = await session.execute(select(Post).where(Post.id == post_id)).scalar_one_or_none()
+        result = await session.execute(select(Post).where(Post.id == post_id))
+        post = result.scalar_one_or_none()
         if not post or post.status != "approved":
             return {"error": "Post not found or not approved"}
         

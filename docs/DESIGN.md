@@ -33,7 +33,18 @@ graph TD
     TrendAgent -->|Save| DB[(SQLite)]
     StrategyAgent -->|Save| DB
     WritingTeam -->|Save| DB
-```
+    WritingTeam -->|Save| DB
+38: 
+39: ### Content Automation Workflow (`agents/workflow.py`)
+40: The automation system orchestrates the agents in a sequential pipeline:
+41: 1.  **Trend Discovery**: Runs `TrendDiscoveryAgent` to find relevant topics (via simulated search or future RSS).
+42: 2.  **Content Strategy**: Runs `ContentStrategyAgent` to ingest trends and produce specific `WeeklyPlan` with post hooks.
+43: 3.  **Writing Team**: Runs `WritingTeam` to pick up draft hooks and generate full LinkedIn-optimized content.
+44: 
+45: ### LinkedIn Integration
+46: -   **OAuth 2.0**: Handles "Sign in with LinkedIn" using `openid`, `profile`, `email`, `w_member_social` scopes.
+47: -   **Posting**: Publishes approved content directly to LinkedIn profile.
+48: -   **Status Tracking**: Two-way sync of connection status and posting success/failure.
 
 ## 3. Key Features
 
