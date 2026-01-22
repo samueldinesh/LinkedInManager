@@ -147,8 +147,8 @@ class GemmaProvider(LLMProvider):
             )
         
         try:
-            # Call the model
-            response = self.llm.invoke(prompt)
+            # Call the model (asynchronously)
+            response = await self.llm.ainvoke(prompt)
             
             # Increment usage
             self._increment_usage()

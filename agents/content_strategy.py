@@ -23,12 +23,26 @@ class ContentStrategyAgent:
     async def _call_llm_with_rate_limit(self, prompt: str) -> str:
         """Call LLM using intelligent API pool (Gemma first, then Gemini)"""
         async with self.rate_limiter:
-            # Uses API pool: tries Gemma (14.4K RPD) first, then Gemini (20 RPD)
+            # Uses API pool: tries Gemma (High Quota) first
             response = await call_llm(prompt)
             return response
 
     async def create_weekly_plan(self) -> WeeklyPlan:
         logger.info("Creating weekly content plan...")
+        
+        # Calculate week start (Monday of current week)
+        today = datetime.utcnow().date()
+        week_start = today - timedelta(days=today.weekday())
+        
+        # Check if plan for this week already exists
+        async with async_session() as session:
+            existing_plan = await session.execute(
+                select(WeeklyPlan).where(WeeklyPlan.week_start == week_start)
+            )
+            existing = existing_plan.scalar_one_or_none()
+            if existing:
+                logger.info(f"Plan for week starting {week_start} already exists (ID: {existing.id}). Skipping creation.")
+                return existing
         
         # Get recent trends from the database
         async with async_session() as session:
@@ -41,14 +55,16 @@ class ContentStrategyAgent:
             logger.warning("No trends found in database. Cannot create plan.")
             return None
         
-        # Prepare trends data for Gemini
+        # Prepare trends data for Gemma
         trends_data = "\n".join([
             f"- {trend.title}: {trend.description} (Category: {trend.category}, Region: {trend.region})"
             for trend in recent_trends
         ])
         
         prompt = f"""
-        Based on the following recent trends in Quantum Computing, AI, IoT, and Bioinformatics, create a weekly content plan for a LinkedIn page focused on educational content and community building.
+        Based on the following recent trends, create a customized weekly content plan for a LinkedIn page focused on educational content and community building.
+        
+        The plan should be tailored to the specific topics and regions found in the trends.
 
         Trends:
         {trends_data}

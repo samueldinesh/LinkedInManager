@@ -266,9 +266,81 @@ async def bulk_delete_posts(request: Request, db: AsyncSession = Depends(get_db)
 async def settings_apis(request: Request):
     return templates.TemplateResponse("settings_apis.html", {"request": request})
 
+# --- Settings & Topics API ---
+
 @app.get("/settings/topics", response_class=HTMLResponse)
-async def settings_topics(request: Request):
-    return templates.TemplateResponse("settings_topics.html", {"request": request})
+async def settings_topics(request: Request, db: AsyncSession = Depends(get_db)):
+    """View topics management page"""
+    from core.models import ContentTopic
+    result = await db.execute(select(ContentTopic).where(ContentTopic.is_active == True))
+    topics = result.scalars().all()
+    return templates.TemplateResponse("settings_topics.html", {"request": request, "topics": topics})
+
+@app.post("/api/settings/topics")
+async def add_topic(request: Request, db: AsyncSession = Depends(get_db)):
+    """Add a new content topic"""
+    try:
+        data = await request.json()
+        name = data.get("name")
+        queries = data.get("queries", []) # List of strings
+        description = data.get("description", "")
+        
+        if not name or not queries:
+            return {"success": False, "message": "Name and queries are required"}
+            
+        from core.models import ContentTopic
+        new_topic = ContentTopic(
+            name=name,
+            description=description,
+            search_queries=queries,
+            is_active=True
+        )
+        db.add(new_topic)
+        await db.commit()
+        return {"success": True, "message": "Topic added", "id": new_topic.id}
+    except Exception as e:
+        logger.error(f"Error adding topic: {e}")
+        return {"success": False, "message": str(e)}
+
+@app.put("/api/settings/topics/{topic_id}")
+async def update_topic(topic_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    """Update an existing content topic"""
+    try:
+        from core.models import ContentTopic
+        topic = await db.get(ContentTopic, topic_id)
+        if not topic:
+            raise HTTPException(status_code=404, detail="Topic not found")
+            
+        data = await request.json()
+        name = data.get("name")
+        queries = data.get("queries", [])
+        description = data.get("description")
+        
+        if name:
+            topic.name = name
+        if queries:
+            topic.search_queries = queries
+        if description is not None:
+            topic.description = description
+            
+        await db.commit()
+        return {"success": True, "message": "Topic updated"}
+    except Exception as e:
+        logger.error(f"Error updating topic: {e}")
+        return {"success": False, "message": str(e)}
+
+@app.delete("/api/settings/topics/{topic_id}")
+async def delete_topic(topic_id: int, db: AsyncSession = Depends(get_db)):
+    """Delete (deactivate) a topic"""
+    from core.models import ContentTopic
+    topic = await db.get(ContentTopic, topic_id)
+    if not topic:
+        raise HTTPException(status_code=404, detail="Topic not found")
+        
+    await db.delete(topic) # Hard delete or soft delete? Let's do hard delete for simplicity now, or just remove.
+    # Actually, let's just delete it to keep it clean.
+    await db.commit()
+    return {"success": True, "message": "Topic deleted"}
 
 # Placeholder for LinkedIn OAuth routes
 @app.get("/linkedin/auth")

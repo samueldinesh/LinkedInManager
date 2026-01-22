@@ -79,7 +79,8 @@ class GeminiProvider(LLMProvider):
                 model=model_name,
                 google_api_key=self.api_key,
                 temperature=temperature,
-                tools=tools if tools else None
+                tools=tools if tools else None,
+                max_retries=0  # Disable retries to fail fast if quota is zero
             )
             self.status = ProviderStatus.ACTIVE
         except Exception as e:
@@ -152,7 +153,7 @@ class GeminiProvider(LLMProvider):
         
         try:
             # Call the model (temperature is already set in __init__)
-            response = self.llm.invoke(prompt)
+            response = await self.llm.ainvoke(prompt)
             
             # Increment usage
             self._increment_usage()
