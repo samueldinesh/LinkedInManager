@@ -38,6 +38,11 @@ class Post(Base):
     scheduled_at = Column(DateTime, nullable=True)
     posted_at = Column(DateTime, nullable=True)
     linkedin_post_id = Column(String, nullable=True)
+    
+    # Governance Fields
+    approved_by = Column(String, nullable=True)
+    approval_comment = Column(Text, nullable=True)
+    
     created_at = Column(DateTime, default=datetime.utcnow)
 
     # Relationships
@@ -91,3 +96,30 @@ class UserSettings(Base):
     value = Column(JSON, nullable=False)
     description = Column(Text, nullable=True)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class Curriculum(Base):
+    """Tracks Micro-Course series lifecycle"""
+    __tablename__ = "curriculum"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    topic_name = Column(String, nullable=False)  # e.g., "Quantum Gates"
+    topic_id = Column(Integer, ForeignKey("content_topics.id"), nullable=True)  # Link to ContentTopic
+    status = Column(String, default="planned")  # planned, in_progress, completed, posted
+    
+    # Series tracking
+    week_start = Column(DateTime, nullable=True)  # When the series started
+    week_end = Column(DateTime, nullable=True)  # When the series ended
+    
+    # Link to actual posts (optional, for tracking)
+    part1_post_id = Column(Integer, ForeignKey("posts.id"), nullable=True)
+    part2_post_id = Column(Integer, ForeignKey("posts.id"), nullable=True)
+    part3_post_id = Column(Integer, ForeignKey("posts.id"), nullable=True)
+    
+    # Metadata
+    priority = Column(Integer, default=0)  # Higher = teach first
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    topic = relationship("ContentTopic")

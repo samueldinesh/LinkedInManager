@@ -23,23 +23,112 @@
             </div>
             <div class="card-body">
                 {% if posts %}
-                <div class="list-group">
-                    {% for post in posts %}
-                    <div
-                        class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
-                        <div>
-                            <h6 class="mb-1">{{ post.title }}</h6>
-                            <p class="mb-1 text-muted small">{{ post.category }}</p>
+
+                <!-- Section 1: Micro-Course Series -->
+                <div class="mb-5">
+                    <h5 class="text-purple border-bottom border-purple pb-2 mb-3">
+                        <i class="bi bi-mortarboard-fill me-2"></i>Micro-Course Series
+                    </h5>
+                    {% set has_lessons = false %}
+                    <div class="timeline">
+                        {% for post in posts %}
+                        {% if post.category == 'lesson_series' %}
+                        {% set has_lessons = true %}
+                        <div class="card mb-3 border-start border-4 border-purple">
+                            <div class="card-body py-2">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        {% if 'Part 1' in post.title %}<span class="badge bg-purple mb-1 me-1">Start of
+                                            Series</span>{% endif %}
+                                        {% if 'Part 3' in post.title %}<span
+                                            class="badge bg-purple mb-1 me-1">Finale</span>{% endif %}
+                                        <i class="bi bi-book-half text-purple me-2"></i>
+                                        <strong class="text-dark">{{ post.title }}</strong>
+                                    </div>
+                                    <span
+                                        class="badge bg-{{ 'success' if post.status == 'approved' else 'secondary' }}">{{
+                                        post.status }}</span>
+                                </div>
+                                <div class="d-flex justify-content-between align-items-center mt-2">
+                                    <small class="text-muted d-block text-truncate" style="max-width: 400px;">{{
+                                        post.content[:100] }}...</small>
+                                    <a href="/posts#post-card-{{ post.id }}"
+                                        class="btn btn-sm btn-outline-secondary">Review</a>
+                                </div>
+                            </div>
                         </div>
-                        <div>
-                            <span class="badge bg-{{ 'success' if post.status == 'approved' else 'secondary' }}">{{
-                                post.status }}</span>
-                            <a href="/posts#post-card-{{ post.id }}"
-                                class="btn btn-sm btn-outline-primary ms-2">View</a>
-                        </div>
+                        <!-- Connector arrow could go here -->
+                        {% endif %}
+                        {% endfor %}
                     </div>
-                    {% endfor %}
+                    {% if not has_lessons %}
+                    <p class="text-muted small fst-italic">No lesson posts scheduled yet.</p>
+                    {% endif %}
                 </div>
+
+                <!-- Section 2: News & Opportunities -->
+                <div>
+                    <h5 class="text-success border-bottom border-success pb-2 mb-3">
+                        <i class="bi bi-newspaper me-2"></i>News & Opportunities
+                    </h5>
+                    <div class="row">
+                        {% for post in posts %}
+                        {% if post.category != 'lesson_series' %}
+                        <div class="col-12 mb-3">
+                            <div
+                                class="card border-start border-4 {% if post.category == 'scheme' %}border-primary{% else %}border-success{% endif %}">
+                                <div class="card-body py-2">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            {% if post.category == 'scheme' %}
+                                            <i class="bi bi-briefcase-fill text-primary me-2"></i>
+                                            <span class="badge bg-primary me-2">Scheme</span>
+                                            {% else %}
+                                            <i class="bi bi-lightning-charge-fill text-success me-2"></i>
+                                            <span class="badge bg-success me-2">News</span>
+                                            {% endif %}
+                                            <strong class="text-dark">{{ post.title }}</strong>
+                                        </div>
+                                        <span
+                                            class="badge bg-{{ 'success' if post.status == 'approved' else 'secondary' }}">{{
+                                            post.status }}</span>
+                                    </div>
+                                    <div class="d-flex justify-content-between align-items-center mt-2">
+                                        <small class="text-muted d-block text-truncate" style="max-width: 400px;">{{
+                                            post.content[:100] }}...</small>
+                                        <a href="/posts#post-card-{{ post.id }}"
+                                            class="btn btn-sm btn-outline-secondary">Review</a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <style>
+                    .bg-purple {
+                        background-color: #6f42c1 !important;
+                        color: white;
+                    }
+
+                    .text-purple {
+                        color: #6f42c1 !important;
+                    }
+
+                    .border-purple {
+                        border-color: #6f42c1 !important;
+                    }
+
+                    .border-success {
+                        border-color: #198754 !important;
+                    }
+
+                    .border-primary {
+                        border-color: #0d6efd !important;
+                    }
+                </style>
                 {% else %}
                 <p class="text-muted">No posts generated for this plan yet.</p>
                 {% endif %}

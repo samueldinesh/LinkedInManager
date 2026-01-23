@@ -1,25 +1,127 @@
 {% extends "base.html" %}
 
 {% block content %}
-    <h1 class="mb-4">Weekly Plans</h1>
-    <div class="row">
-        {% for plan in plans %}
-            <div class="col-md-6 mb-4">
-                <div class="card">
-                    <div class="card-header">
-                        <strong>Week of {{ plan.week_start.strftime('%Y-%m-%d') }}</strong>
-                        <span class="badge bg-{{ 'success' if plan.status == 'approved' else 'warning' }}">{{ plan.status }}</span>
-                    </div>
-                    <div class="card-body">
-                        <p>Created: {{ plan.created_at.strftime('%Y-%m-%d %H:%M') }}</p>
-                        <a href="/plans/{{ plan.id }}" class="btn btn-primary">View Details</a>
+<h1 class="mb-4">Course Plans</h1>
+
+<!-- Curriculum Tracker Widget -->
+<div class="card mb-5 border-info">
+    <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="bi bi-journal-bookmark-fill me-2"></i>Curriculum Progress</h5>
+        <span class="badge bg-light text-dark">Auto-Managed by AI</span>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <!-- Active Course -->
+            <div class="col-md-4 border-end">
+                <h6 class="text-primary fw-bold text-uppercase small mb-3">Currently Teaching</h6>
+                {% if curriculum_in_progress %}
+                {% for curr in curriculum_in_progress %}
+                <div class="p-3 bg-light rounded border border-primary">
+                    <h4 class="text-purple mb-1"><i class="bi bi-mortarboard-fill me-2"></i>{{ curr.topic_name }}</h4>
+                    <small class="text-muted">Started: {{ curr.week_start.strftime('%Y-%m-%d') }}</small>
+                    <div class="progress mt-2" style="height: 5px;">
+                        <div class="progress-bar bg-purple" style="width: 50%"></div>
                     </div>
                 </div>
+                {% endfor %}
+                {% else %}
+                <p class="text-muted fst-italic">No active course. Run agents to start next topic.</p>
+                {% endif %}
             </div>
-        {% else %}
-            <div class="col-12">
-                <p class="text-center">No weekly plans created yet.</p>
+
+            <!-- Up Next (Queue) -->
+            <div class="col-md-4 border-end">
+                <h6 class="text-muted fw-bold text-uppercase small mb-3">Up Next (Queue)</h6>
+                {% if curriculum_planned %}
+                <ul class="list-group list-group-flush">
+                    {% for curr in curriculum_planned %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center bg-transparent px-0">
+                        <span>{{ curr.topic_name }}</span>
+                        <span class="badge bg-secondary rounded-pill">{{ curr.priority }}</span>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <div class="alert alert-light border border-dashed text-center small text-muted">
+                    Queue empty. AI will pick from <a href="/settings/topics">Topics</a> list.
+                </div>
+                {% endif %}
             </div>
-        {% endfor %}
+
+            <!-- Completed -->
+            <div class="col-md-4">
+                <h6 class="text-success fw-bold text-uppercase small mb-3">Completed Series</h6>
+                {% if curriculum_completed %}
+                <ul class="list-unstyled">
+                    {% for curr in curriculum_completed %}
+                    <li class="mb-2 text-success">
+                        <i class="bi bi-check-circle-fill me-2"></i>{{ curr.topic_name }}
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <p class="text-muted small">No courses completed yet.</p>
+                {% endif %}
+            </div>
+        </div>
     </div>
+</div>
+
+<h3 class="mb-3 text-muted">Weekly History</h3>
+<div class="row">
+    {% for plan in plans %}
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <strong>Week of {{ plan.week_start.strftime('%Y-%m-%d') }}</strong>
+                <span class="badge bg-{{ 'success' if plan.status == 'approved' else 'warning' }}">{{ plan.status
+                    }}</span>
+            </div>
+            <div class="card-body">
+                {% set theme = "General" %}
+                {% for post in plan.posts %}
+                {% if post.category == 'lesson_series' and (post.title is defined) and ('Part 1' in post.title) %}
+                {% set theme_str = post.title.split(':')[-1].strip() %}
+                {% set theme = theme_str %}
+                {% endif %}
+                {% endfor %}
+
+                {% if theme != "General" %}
+                <div class="mb-3">
+                    <span class="badge bg-primary text-wrap" style="font-size: 0.9rem;">
+                        <i class="bi bi-mortarboard-fill me-1"></i> Theme: {{ theme }}
+                    </span>
+                </div>
+                {% endif %}
+
+                <div class="d-flex mb-3 align-items-center">
+                    {% for post in plan.posts %}
+                    {% if post.category == 'lesson_series' %}
+                    <div class="flex-fill" style="height: 6px; background-color: #6f42c1; margin-right: 2px;"
+                        title="{{ post.title }}"></div>
+                    {% elif post.category == 'news' or post.category == 'breakthrough' %}
+                    <div class="flex-fill" style="height: 6px; background-color: #198754; margin-right: 2px;"
+                        title="{{ post.title }}"></div>
+                    {% elif post.category == 'scheme' %}
+                    <div class="flex-fill" style="height: 6px; background-color: #0d6efd; margin-right: 2px;"
+                        title="{{ post.title }}"></div>
+                    {% else %}
+                    <div class="flex-fill" style="height: 6px; background-color: #adb5bd; margin-right: 2px;"
+                        title="{{ post.title }}"></div>
+                    {% endif %}
+                    {% endfor %}
+                </div>
+
+                <p class="text-muted small mb-2">{{ plan.posts|length }} Posts Scheduled</p>
+                <p class="text-muted small">Created: {{ plan.created_at.strftime('%Y-%m-%d %H:%M') }}</p>
+                <a href="/plans/{{ plan.id }}" class="btn btn-outline-primary w-100">View Plan Details</a>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="col-12">
+        <p class="text-center">No weekly plans created yet.</p>
+    </div>
+    {% endfor %}
+</div>
 {% endblock %}
