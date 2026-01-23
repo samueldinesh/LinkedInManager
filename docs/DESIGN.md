@@ -72,3 +72,63 @@ The system uses a tiered priority system to maximize quality while minimizing co
 -   **Trends**: Stores discovered news/topics.
 -   **WeeklyPlans**: High-level strategy for the week.
 -   **Posts**: The actual content (Draft -> Approved -> Posted).
+
+## 5. UI/UX Design Specs (Phase 5)
+
+### Plan Dashboard (`/plans`)
+-   **Card Layout**: Display plans as cards.
+-   **Theme Badge**: Emphasize the "Theme of the Week" (e.g., "Theme: Quantum Gates") on the card.
+-   **Mini-Schedule**: Show small icons/dots representing the 7 days (Part 1, News, Part 2...).
+
+### Plan Detail View (`/plans/{id}`)
+-   **Layout**: Split view into two distinct sections.
+-   **Section 1: Micro-Course Series (Theme)**:
+    -   Prominent header with the Theme Name.
+    -   Horizontal or focused vertical list of the 3 Lesson parts.
+    -   Purple styling.
+-   **Section 2: News & Opportunities**:
+    -   "Breaking Updates" section.
+    -   Standard list/grid of News and Scheme posts.
+    -   Green/Blue styling.
+-   **No Duplicates**: Ensure backend appends to the single weekly plan.
+
+## 6. Governance & Navigation (Phase 7)
+
+### Approval Workflow
+-   **Default Status**: All AI-generated content MUST start as `draft`.
+-   **Approval Action**:
+    -   Requres user confirmation.
+    -   Inputs: `scheduled_time` (optional), `comment` (optional), `approver_name`.
+-   **Posting**: Two-step verification ("Are you sure you want to post to LinkedIn?").
+
+### Navigation Structure
+-   **Main Bar**:
+    -   **Dashboard** (Trends/Overview)
+    -   **Course Plans** (Weekly Plans)
+    -   **Topics** (Manage Content Topics)
+    -   **Posts** (Review/Approve/Schedule)
+-   **Settings (Dropdown/Right)**:
+    -   **Providers** (LLM/Search Config)
+    -   **System** (Logs/status)
+
+## 7. Curriculum Tracker (Lesson Management)
+
+### Concept
+The system needs to track completed **Micro-Courses** and intelligently suggest the next topic to teach. This creates a continuous learning journey for the audience.
+
+### Data Model
+-   **Curriculum Table** (New):
+    -   `id`, `topic_name`, `status` (planned, in_progress, completed, posted)
+    -   `series_start_date`, `series_end_date`
+    -   `part1_post_id`, `part2_post_id`, `part3_post_id` (Optional FKs)
+    -   `audience_feedback_score` (Optional, for future engagement tracking)
+
+### Workflow
+1.  **Current Week**: AI picks a topic from `status='planned'`.
+2.  **Series Completion**: When Part 3 is posted, mark curriculum as `completed`.
+3.  **Next Suggestion**: AI analyzes `ContentTopics` not yet in Curriculum and suggests the next one.
+4.  **User Override**: User can manually select/prioritize topics in the UI.
+
+### UI Integration
+-   **Course Plans Page**: Add a "Curriculum Progress" section showing completed, in-progress, and upcoming topics.
+-   **After Posting**: Prompt user to rate engagement (optional) for future optimization.

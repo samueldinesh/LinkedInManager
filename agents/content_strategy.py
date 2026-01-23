@@ -6,7 +6,8 @@ from datetime import datetime, timedelta
 from typing import List, Dict
 
 from core.database import async_session
-from core.models import Trend, WeeklyPlan, Post
+from core.database import async_session
+from core.models import Trend, WeeklyPlan, Post, ContentTopic
 from core.rate_limiter import RateLimiter
 from core.llm_caller import call_llm
 from sqlalchemy import select
@@ -41,8 +42,10 @@ class ContentStrategyAgent:
             )
             existing = existing_plan.scalar_one_or_none()
             if existing:
-                logger.info(f"Plan for week starting {week_start} already exists (ID: {existing.id}). Skipping creation.")
-                return existing
+                logger.info(f"Plan for week starting {week_start} already exists (ID: {existing.id}). Will append new posts.")
+                # Don't return, proceed to generate and append
+            else:
+                existing = None
         
         # Get recent trends from the database
         async with async_session() as session:
@@ -55,42 +58,111 @@ class ContentStrategyAgent:
             logger.warning("No trends found in database. Cannot create plan.")
             return None
         
-        # Prepare trends data for Gemma
+        # ===== CURRICULUM-AWARE TOPIC SELECTION =====
+        from core.models import Curriculum
+        theme_topic = None
+        current_curriculum = None
+        
+        async with async_session() as session:
+            # 1. Check for in_progress curriculum entry
+            result = await session.execute(
+                select(Curriculum).where(Curriculum.status == "in_progress").limit(1)
+            )
+            current_curriculum = result.scalar_one_or_none()
+            
+            if current_curriculum:
+                theme_topic = current_curriculum.topic_name
+                logger.info(f"Continuing in-progress curriculum: {theme_topic}")
+            else:
+                # 2. Find highest priority planned entry
+                result = await session.execute(
+                    select(Curriculum).where(Curriculum.status == "planned").order_by(Curriculum.priority.desc()).limit(1)
+                )
+                planned = result.scalar_one_or_none()
+                
+                if planned:
+                    theme_topic = planned.topic_name
+                    # Update to in_progress
+                    planned.status = "in_progress"
+                    planned.week_start = datetime.utcnow()
+                    await session.commit()
+                    current_curriculum = planned
+                    logger.info(f"Starting new curriculum: {theme_topic}")
+                else:
+                    # 3. Fallback: Pick from ContentTopics not yet in Curriculum
+                    result = await session.execute(select(ContentTopic).where(ContentTopic.is_active == True))
+                    active_topics = result.scalars().all()
+                    
+                    # Filter out topics already in curriculum
+                    existing = await session.execute(select(Curriculum.topic_name))
+                    existing_names = {r[0] for r in existing.fetchall()}
+                    
+                    available = [t for t in active_topics if t.name not in existing_names]
+                    
+                    if available:
+                        import random
+                        chosen = random.choice(available)
+                        theme_topic = chosen.name
+                        # Add to curriculum as in_progress
+                        new_curr = Curriculum(
+                            topic_name=theme_topic,
+                            topic_id=chosen.id,
+                            status="in_progress",
+                            week_start=datetime.utcnow()
+                        )
+                        session.add(new_curr)
+                        await session.commit()
+                        current_curriculum = new_curr
+                        logger.info(f"Added new topic to curriculum: {theme_topic}")
+                    else:
+                        # All topics exhausted, pick random from active
+                        import random
+                        theme_topic = random.choice(active_topics).name if active_topics else "Emerging Technology"
+                        logger.info(f"All topics taught. Recycling: {theme_topic}")
+
+
+        # Prepare trends data
         trends_data = "\n".join([
             f"- {trend.title}: {trend.description} (Category: {trend.category}, Region: {trend.region})"
             for trend in recent_trends
         ])
         
         prompt = f"""
-        Based on the following recent trends, create a customized weekly content plan for a LinkedIn page focused on educational content and community building.
+        Create a weekly content plan for a LinkedIn page focused on educational content.
         
-        The plan should be tailored to the specific topics and regions found in the trends.
+        THEME OF THE WEEK: "{theme_topic}"
+        
+        Your goal is to create a "Micro-Course" series on this theme, interspersed with breaking news.
 
-        Trends:
+        Trends Available (for News posts):
         {trends_data}
 
-        Create a plan for the next 7 days with the following structure:
-        - 3 Educational Lessons (explain concepts, applications, or fundamentals)
-        - 2 Breakthrough Announcements (share exciting new developments)
-        - 2 Scheme/Opportunity Alerts (highlight funding, programs, or opportunities, especially in India)
+        REQUIRED SCHEDULE (7 Days):
+        - Monday (Part 1): Introduction to {theme_topic} (Concept & Basics).
+        - Tuesday: Breaking News / Trend Analysis (Pick relevant trend).
+        - Wednesday (Part 2): How {theme_topic} Works (Deep Dive / Mechanism).
+        - Thursday: Breaking News / Opportunity Scheme (Pick relevant trend).
+        - Friday (Part 3): Real-world Applications of {theme_topic} (Use Cases).
+        - Saturday/Sunday: Recap or Engagement Question.
 
-        For each post, provide:
-        - Day of the week
-        - Category (Lesson, Breakthrough, Scheme)
-        - Title
-        - Brief description of what the post will cover
-        - Which trend(s) it relates to
-
-        Format the response as a JSON-like structure:
+        Output strictly as JSON:
         {{
             "posts": [
                 {{
                     "day": "Monday",
-                    "category": "Lesson",
-                    "title": "Title here",
-                    "description": "Brief description",
-                    "related_trends": ["Trend title 1", "Trend title 2"]
+                    "category": "lesson_series",
+                    "series_part": 1,
+                    "title": "Micro-Course Part 1: [Title]",
+                    "description": "Explaining the core concept...",
+                    "related_trends": []
                 }},
+                {{
+                    "day": "Tuesday",
+                    "category": "news",
+                    "title": "[Trend Title]",
+                    "description": "Discussing recent news...",
+                    "related_trends": ["Trend 1"]
+                }}
                 ...
             ]
         }}
@@ -101,7 +173,9 @@ class ContentStrategyAgent:
             plan_data = self._parse_llm_response(response_text)
             
             # Create WeeklyPlan and Posts in database
-            weekly_plan = await self._save_plan_to_db(plan_data, recent_trends)
+            # Pass existing plan ID if available
+            existing_id = existing.id if existing else None
+            weekly_plan = await self._save_plan_to_db(plan_data, recent_trends, existing_id)
             return weekly_plan
         except Exception as e:
             logger.error(f"Error creating weekly plan: {e}")
@@ -131,7 +205,7 @@ class ContentStrategyAgent:
             logger.warning(f"Could not parse Gemini response as JSON: {e}. Returning empty plan.")
             return {"posts": []}
 
-    async def _save_plan_to_db(self, plan_data: Dict, trends: List[Trend]) -> WeeklyPlan:
+    async def _save_plan_to_db(self, plan_data: Dict, trends: List[Trend], existing_plan_id: int = None) -> WeeklyPlan:
         logger.info("Saving weekly plan to database...")
         
         # Calculate week start (Monday of current week)
@@ -140,13 +214,17 @@ class ContentStrategyAgent:
         
         async with async_session() as session:
             async with session.begin():
-                # Create WeeklyPlan
-                weekly_plan = WeeklyPlan(
-                    week_start=week_start,
-                    status="draft"
-                )
-                session.add(weekly_plan)
-                await session.flush()  # Get the ID
+                if existing_plan_id:
+                    result = await session.execute(select(WeeklyPlan).where(WeeklyPlan.id == existing_plan_id))
+                    weekly_plan = result.scalar_one()
+                else:
+                    # Create WeeklyPlan
+                    weekly_plan = WeeklyPlan(
+                        week_start=week_start,
+                        status="draft"
+                    )
+                    session.add(weekly_plan)
+                    await session.flush()  # Get the ID
                 
                 # Create Posts
                 for post_data in plan_data.get("posts", []):

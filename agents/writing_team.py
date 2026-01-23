@@ -66,8 +66,9 @@ class WritingTeam:
             )
             
             # Update the post in database
+            # STRICT GOVERNANCE: Set status to 'draft' so user must manually approve
             await session.execute(
-                update(Post).where(Post.id == post_id).values(content=linkedin_content, status="approved")
+                update(Post).where(Post.id == post_id).values(content=linkedin_content, status="draft")
             )
             await session.commit()
         
@@ -108,6 +109,13 @@ class WritingTeam:
                 - Use action-oriented language ("Apply now", "Don't miss this")
                 - End with "Have you applied? Share your experience!"
             """,
+            "lesson_series": """
+                - This post is part of a "Micro-Course" series.
+                - PART 1: Define the concept clearly. End by teasing Part 2 (How it works).
+                - PART 2: Explain the mechanism/process. Start by recalling Part 1. End by teasing Part 3 (Applications).
+                - PART 3: Show real-world value/use cases. Start by recalling Part 2. End with a graduation/summary message.
+                - Link to other parts using "Did you catch Part X?"
+            """
         }
         
         guidance = category_guidance.get(category, """
